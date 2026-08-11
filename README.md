@@ -90,16 +90,16 @@ scholarchain/
 ├── json/
 │   ├── sample_credential.json     # Credential metadata JSON format
 │   └── sample_institution.json    # Institution profile metadata format
-├── frontend/
-│   ├── frontend/                  # React Application Root
-│   │   ├── src/
-│   │   │   ├── components/        # Navbar, CredentialCard, WalletConnect
-│   │   │   ├── contracts/         # ScholarChainV2Service.js (Ethers.js layer)
-│   │   │   ├── pages/             # Home, Verify, MyCredentials, IssueCredential, Admin
-│   │   │   ├── App.jsx            # Dynamic role detection & routing
-│   │   │   └── main.jsx
-│   │   ├── package.json
-│   │   └── vite.config.js
+├── frontend/                      # React Application Root
+│   ├── src/
+│   │   ├── components/            # Navbar, CredentialCard, WalletConnect
+│   │   ├── contracts/             # ScholarChainV2Service.js (Ethers.js layer)
+│   │   ├── pages/                 # Home, Verify, MyCredentials, IssueCredential, Admin
+│   │   ├── App.jsx                # Dynamic role detection & routing
+│   │   └── main.jsx
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js
 └── README.md
 ```
 
@@ -120,7 +120,7 @@ cd scholarchain-credential-system
 
 ### 2. Install Dependencies
 ```bash
-cd frontend/frontend
+cd frontend
 npm install
 ```
 
