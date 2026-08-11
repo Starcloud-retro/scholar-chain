@@ -1,7 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import 'tailwindcss';
 
 :root {
-	font-family: 'Sora', 'Manrope', 'Segoe UI', sans-serif;
+	font-family: 'Inter', system-ui, -apple-system, sans-serif;
+	color-scheme: dark;
+}
+
+.font-serif {
+	font-family: 'Cinzel', Georgia, serif;
+}
+
+.font-mono {
+	font-family: 'JetBrains Mono', monospace;
 }
 
 * {
@@ -11,13 +21,30 @@
 body {
 	margin: 0;
 	min-height: 100vh;
-	background:
-		radial-gradient(circle at 20% 10%, rgba(34, 211, 238, 0.14), transparent 40%),
-		radial-gradient(circle at 80% 90%, rgba(16, 185, 129, 0.15), transparent 35%),
-		#020617;
-	color: #e2e8f0;
+	background: #070A10;
+	color: #F8FAFC;
+	overflow-x: hidden;
 }
 
 #root {
 	min-height: 100vh;
+}
+
+/* Custom dark scrollbar */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: #0B0F17;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #1E293B;
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #D97706;
 }

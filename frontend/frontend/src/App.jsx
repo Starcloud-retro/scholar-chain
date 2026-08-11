@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import IssueCredential from './pages/IssueCredential'
@@ -11,10 +11,14 @@ import IssuerApplication from './pages/IssuerApplication'
 import {
 	connectWallet,
 	switchAccountPermissions,
-	getOwner,
-	isAuthorizedIssuer,
 } from './contracts/ScholarChainService'
-import { getIssuerOrganizationName } from './data/issuerRegistry'
+import {
+	getV2Owner,
+	INSTITUTION_STATUS,
+	resolveInstitutionProfile,
+	SEPOLIA_CHAIN_ID,
+	switchToSepoliaNetwork,
+} from './contracts/ScholarChainV2Service'
 
 function App() {
 	const [account, setAccount] = useState('')
@@ -24,8 +28,10 @@ function App() {
 	const [isAuthorizedIssuerRole, setIsAuthorizedIssuerRole] = useState(false)
 	const [isContractOwner, setIsContractOwner] = useState(false)
 	const [organizationLabel, setOrganizationLabel] = useState('')
+	const [institutionProfile, setInstitutionProfile] = useState(null)
+	const [networkError, setNetworkError] = useState('')
 
-	const refreshWalletState = async () => {
+	const refreshWalletState = useCallback(async () => {
 		if (!window.ethereum) return
 
 		const providerAccounts = await window.ethereum.request({ method: 'eth_accounts' })
@@ -33,7 +39,7 @@ function App() {
 
 		setAccount(providerAccounts?.[0] || '')
 		setChainId(currentChainId || '')
-	}
+	}, [])
 
 	useEffect(() => {
 		if (!window.ethereum) return undefined
@@ -46,7 +52,8 @@ function App() {
 				.catch(() => setChainId(''))
 		}
 
-		const handleChainChanged = () => {
+		const handleChainChanged = (newChain) => {
+			setChainId(newChain || '')
 			refreshWalletState().catch(() => {
 				setAccount('')
 				setChainId('')
@@ -73,7 +80,7 @@ function App() {
 			window.ethereum.removeListener('accountsChanged', handleAccountsChanged)
 			window.ethereum.removeListener('chainChanged', handleChainChanged)
 		}
-	}, [])
+	}, [refreshWalletState])
 
 	useEffect(() => {
 		let mounted = true
@@ -84,13 +91,14 @@ function App() {
 				setIsAuthorizedIssuerRole(false)
 				setIsContractOwner(false)
 				setOrganizationLabel('')
+				setInstitutionProfile(null)
 				return
 			}
 
 			try {
-				const [ownerAddress, issuerRole] = await Promise.all([
-					getOwner(),
-					isAuthorizedIssuer(account),
+				const [ownerAddress, profile] = await Promise.all([
+					getV2Owner(),
+					resolveInstitutionProfile(account, true),
 				])
 
 				if (!mounted) return
@@ -98,18 +106,18 @@ function App() {
 				const normalizedAccount = account.toLowerCase()
 				const normalizedOwner = ownerAddress.toLowerCase()
 				const ownerMatch = normalizedAccount === normalizedOwner
-				const authorizedIssuer = issuerRole || ownerMatch
+				const authorizedIssuer = profile?.status === INSTITUTION_STATUS.APPROVED
 
 				setContractOwner(ownerAddress)
 				setIsContractOwner(ownerMatch)
 				setIsAuthorizedIssuerRole(authorizedIssuer)
+				setInstitutionProfile(profile)
 				setOrganizationLabel(
-					getIssuerOrganizationName(account) ||
-						(ownerMatch
-							? 'Contract Owner'
-							: authorizedIssuer
-								? 'Authorized Issuer'
-								: ''),
+					ownerMatch
+						? 'ScholarChain Governance Admin'
+						: authorizedIssuer
+						? profile?.name || 'Approved Institution'
+						: '',
 				)
 			} catch {
 				if (!mounted) return
@@ -117,6 +125,7 @@ function App() {
 				setIsAuthorizedIssuerRole(false)
 				setIsContractOwner(false)
 				setOrganizationLabel('')
+				setInstitutionProfile(null)
 			}
 		}
 
@@ -126,6 +135,22 @@ function App() {
 			mounted = false
 		}
 	}, [account])
+
+	const isSepolia = useMemo(() => {
+		if (!chainId) return true
+		const numericChain = parseInt(chainId, 16)
+		return numericChain === Number(SEPOLIA_CHAIN_ID) || chainId === SEPOLIA_CHAIN_ID
+	}, [chainId])
+
+	const handleSwitchNetwork = useCallback(async () => {
+		setNetworkError('')
+		try {
+			await switchToSepoliaNetwork()
+			await refreshWalletState()
+		} catch (err) {
+			setNetworkError(err.message || 'Failed to switch network')
+		}
+	}, [refreshWalletState])
 
 	const handleConnectWallet = async () => {
 		const result = await connectWallet()
@@ -150,40 +175,61 @@ function App() {
 			setAccount,
 			chainId,
 			setChainId,
+			isSepolia,
 			isWalletReady,
 			contractOwner,
 			isAuthorizedIssuerRole,
 			isContractOwner,
 			organizationLabel,
-			roleLabel: isContractOwner ? 'Admin' : isAuthorizedIssuerRole ? 'Issuer' : 'Student',
-			roleIcon: isContractOwner ? '🛡' : isAuthorizedIssuerRole ? '🏛' : '🎓',
+			institutionProfile,
+			roleLabel: isContractOwner ? 'Admin' : isAuthorizedIssuerRole ? 'Institution' : 'Student',
+			roleIcon: isContractOwner ? '🛡️' : isAuthorizedIssuerRole ? '🏛️' : '🎓',
 			handleConnectWallet,
 			handleSwitchAccount,
 			handleDisconnectWallet,
+			handleSwitchNetwork,
 		}),
 		[
 			account,
 			chainId,
+			isSepolia,
 			isWalletReady,
 			contractOwner,
 			isAuthorizedIssuerRole,
 			isContractOwner,
 			organizationLabel,
+			institutionProfile,
+			handleSwitchNetwork,
 		],
 	)
 
 	return (
 		<BrowserRouter>
-			<div className="min-h-screen bg-slate-950 text-slate-100">
-				<div className="absolute inset-0 -z-10 overflow-hidden">
-					<div className="absolute left-[-8rem] top-[-10rem] h-80 w-80 rounded-full bg-cyan-500/20 blur-3xl" />
-					<div className="absolute right-[-7rem] top-20 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
-					<div className="absolute bottom-0 left-1/2 h-72 w-[34rem] -translate-x-1/2 rounded-full bg-blue-600/20 blur-3xl" />
+			<div className="min-h-screen bg-[#070A10] text-slate-100 font-sans selection:bg-amber-500/30 selection:text-amber-200">
+				{/* Background ambient lighting for deep dark academic feel */}
+				<div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+					<div className="absolute -top-40 left-1/4 h-[500px] w-[500px] rounded-full bg-amber-900/10 blur-[140px]" />
+					<div className="absolute top-1/3 -right-40 h-[600px] w-[600px] rounded-full bg-indigo-950/20 blur-[160px]" />
+					<div className="absolute -bottom-20 left-1/3 h-[500px] w-[600px] rounded-full bg-slate-900/40 blur-[150px]" />
 				</div>
+
+				{!isSepolia && account ? (
+					<div className="relative z-30 bg-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 text-center text-xs font-semibold text-amber-200 backdrop-blur-md flex items-center justify-center gap-3">
+						<span>⚠️ You are connected to an unsupported network (Chain ID: {chainId}). Switch to Sepolia Testnet to interact with V2 smart contract.</span>
+						<button
+							type="button"
+							onClick={handleSwitchNetwork}
+							className="rounded-md bg-amber-500 px-3 py-1 text-xs font-bold text-slate-950 hover:bg-amber-400 transition"
+						>
+							Switch to Sepolia
+						</button>
+						{networkError ? <span className="text-rose-400 font-normal">({networkError})</span> : null}
+					</div>
+				) : null}
 
 				<Navbar walletState={walletState} />
 
-				<main className="mx-auto w-full max-w-7xl px-4 pb-14 pt-8 sm:px-6 lg:px-8">
+				<main className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">
 					<Routes>
 						<Route path="/" element={<Home walletState={walletState} />} />
 						<Route path="/issue" element={<IssueCredential walletState={walletState} />} />
